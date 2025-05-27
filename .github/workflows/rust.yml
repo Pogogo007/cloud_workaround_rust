@@ -1,0 +1,74 @@
+name: Build Rust Project for Linux and Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-linux:
+    name: Build for Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package binary and path.txt
+        run: |
+          BIN_NAME=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')
+          mkdir output
+          cp "target/release/$BIN_NAME" output/
+          cp paths.txt output/
+          tar -czf linux-build.tar.gz -C output .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: linux-build.tar.gz
+
+  build-windows:
+    name: Build for Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          
+      - name: Install zip (Windows)
+        run: choco install zip -y
+        
+      - name: Build
+        run: cargo build --release
+
+      - name: Package binary and path.txt
+        shell: bash
+        run: |
+          BIN_NAME=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')
+          mkdir output
+          cp "target/release/$BIN_NAME.exe" output/
+          cp paths.txt output/
+          cd output
+          zip ../windows-build.zip *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: windows-build.zip
