@@ -1,5 +1,6 @@
 # cloud config rust workaround
 Workaround for games with graphics settings synced by Steam cloud, rewritten in rust.
+# All credit for the idea and main logic goes to the Original Creator (tmplshdw)
 # [Original](https://github.com/tmplshdw/cloud_config_workaround)
 
 ## Why?
