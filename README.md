@@ -23,5 +23,5 @@ Download the build corresponding to your os and unpack it somewhere.
 Mark it as executable if needed.  
 Add  
 `WHEREVER_YOU_PUT_IT/cloud_workaround_rust %command%` for Linux.  
-`WHEREVER_YOU_PUT_IT/cloud_workaround_rust.exe %command%` for Windows.  
+`"WHEREVER_YOU_PUT_IT/cloud_workaround_rust.exe" %command%` for Windows. (The quotes around the path are required on windows)  
 
