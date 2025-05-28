@@ -32,11 +32,14 @@ jobs:
           cp paths.txt output/
           tar -czf linux-build.tar.gz -C output .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: linux-build
-          path: linux-build.tar.gz
+          tag_name: latest
+          name: Latest
+          files: linux-build.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     name: Build for Windows
@@ -51,9 +54,9 @@ jobs:
         with:
           toolchain: stable
           
-      - name: Install zip (Windows)
+      - name: Install zip
         run: choco install zip -y
-        
+
       - name: Build
         run: cargo build --release
 
@@ -67,8 +70,11 @@ jobs:
           cd output
           zip ../windows-build.zip *
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows-build
-          path: windows-build.zip
+          tag_name: latest
+          name: Latest
+          files: windows-build.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
