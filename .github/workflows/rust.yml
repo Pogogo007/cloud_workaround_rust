@@ -20,7 +20,7 @@ jobs:
         run: wget https://raw.githubusercontent.com/tmplshdw/cloud_config_workaround/refs/heads/main/paths.txt -O paths.txt
 
       - name: Append extra paths
-        run: cat extrapaths.txt >> paths.txt
+        run: echo >> paths.txt; cat extrapaths.txt >> paths.txt
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
