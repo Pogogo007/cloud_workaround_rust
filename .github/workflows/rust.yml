@@ -68,7 +68,9 @@ jobs:
         shell: powershell
 
       - name: Append extra paths
-        run: Get-Content extrapaths.txt | Add-Content paths.txt
+        run: |
+          Add-Content paths.txt "`r`n"
+          Get-Content extrapaths.txt | Add-Content paths.txt
         shell: powershell
 
       - name: Build
