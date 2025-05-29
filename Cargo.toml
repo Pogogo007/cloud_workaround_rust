@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.41"
+fern = "0.7.1"
 home = "0.5.11"
+log = "0.4.27"
 regex = "1.11.1"
 
 [target.'cfg(windows)'.dependencies]

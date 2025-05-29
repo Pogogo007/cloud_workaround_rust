@@ -1,16 +1,17 @@
 use core::panic;
 use std::fs;
 use std::env;
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::{PathBuf, Path};
 use regex::Regex;
 use std::io::{BufRead, BufReader};
 use std::fs::File;
 use std::process::{Command, exit};
 use std::collections::HashMap;
+use log::{debug, error, info, LevelFilter};
+use chrono::Local;
 
 fn main() {
+
     //grab original command without self
     let mut args = env::args().skip(1);
 
@@ -18,7 +19,7 @@ fn main() {
     let Some(command) = args.next() else {
         panic!("No command to run. Was Steam launch option set to `%command%`?")
     };
-
+    
     //Os Independent Vars
     let home_dir = home::home_dir().expect("Could not determine home directory");
     let mut good_config_paths = home_dir.join("Documents").join("game_configs");
@@ -29,16 +30,46 @@ fn main() {
     let steam_id_3: String;
     const STEAM_ID_OFFSET: u64 = 76561197960265728;
 
+    //Setup logging
+
+    //Hook panic and expect
+    //Panic and expect are not the best ideas but for a program that needs everything else before to continue running its fine
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("Panic: {}", info);
+    }));
+    //Loglevel depending on build
+    let log_level = if cfg!(debug_assertions) {
+        LevelFilter::Debug // Debug build
+    } else {
+        LevelFilter::Info // Release build
+    };
+    //Setup fern
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}]",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                message
+            ))
+        })
+        .level(log_level)
+        .chain(std::io::stdout())
+        .chain(fern::log_file(log_file_path).expect("Unable to access log file"))
+        .apply().expect("Unable to create logger");
+    //Finish logging setup
+
     // variables needed depending on os
     //Linux only
-    let win_user_path = "pfx/drive_c/users/steamuser";
+    const WINE_USER_PATH: &str = "pfx/drive_c/users/steamuser";
     let mut proton_prefix: Option<PathBuf> = None;
 
     //Windows only 
     let mut custom_env: HashMap<String, String> = HashMap::new();
 
-    //Set variables if under windows
+    //Set needed variables depending on OS
     match std::env::consts::OS {
+        //Set variables if under windows
         "windows" => {
             let steam_id_str = env::var("STEAMID").expect("No SteamID Found");
             let steam_id_u64: u64 = steam_id_str.parse().expect("STEAMID is not a valid number");
@@ -57,7 +88,7 @@ fn main() {
         } 
         //Set variables if under linux
         "linux" => {
-            proton_prefix = Some(PathBuf::from(env::var("STEAM_COMPAT_DATA_PATH").expect("No Compat data path")));
+            proton_prefix = Some(PathBuf::from(env::var("STEAM_COMPAT_DATA_PATH").expect("No proton compat data folder found. This tool does not support linux native games!")));
             let steam_user = env::var("SteamUser").expect("Steam User not found!");
             //.local/share/Steam/config/config.vdf
             let config_vdf = home_dir.join(".local").join("share").join("Steam").join("config").join("config.vdf");
@@ -71,18 +102,36 @@ fn main() {
                 steam_id = steam_id_u64.to_string();
                 steam_id_3 = steam_id_3_u64.to_string();
             } else {
-                panic!("No steamid found. How is this possible")
+                panic!("No steamid found in config.vdf. How is this possible?")
             }
         }
         _ => {
             panic!("Unsupported OS at this stage???")
         }
     }
-
-    
-    
+    //Startup finished. Log debug info
+    debug!("Startup finished. Logging debug info");
+    debug!("Operating System:  {}", std::env::consts::OS );
+    debug!("Steam App ID:  {}", steam_app_id );
+    debug!("Home Directory: {}", home_dir.to_string_lossy());
+    debug!("Good Config Directory: {}", good_config_paths.to_string_lossy());
+    debug!("Paths file: {}", paths_file.to_string_lossy());
+    debug!("SteamID64: {}", steam_id);
+    debug!("SteamID3: {}", steam_id_3);
+    match std::env::consts::OS {
+        "windows" => {
+            for (k, v) in &custom_env {
+                debug!("{} = {}", k, v);
+            }
+        }
+        "linux" => {
+            debug!("Proton Prefix: {}", proton_prefix.as_ref().unwrap().to_string_lossy())
+        }
+        _ => {}
+    }
+    //Finish debug logging
     //Create Config Dir if not exists
-    fs::create_dir_all(&good_config_paths).expect("Could not create dir");
+    fs::create_dir_all(&good_config_paths).expect("Could not create config dir");
 
     //Find game lines in paths.txt
     let file = File::open(&paths_file).expect("No paths.txt found");
@@ -95,32 +144,27 @@ fn main() {
         .filter(|line| line.trim_start().starts_with(&prefix))
         .collect();
 
-    //Open log file 
-    let mut log_file = OpenOptions::new()
-        .create(true)    // Create the file if it doesn't exist
-        .append(true)    // Append to the file (don't overwrite)
-        .open(log_file_path).expect("Failed to create or open logfile");
-
-
-    //End of "startup" actually 
-
-
     //If no matches in path.txt execute original game without doing anything
     if matching_lines.is_empty(){
-        let _ = writeln!(log_file, "No matches in path.txt, launching game without doing anything");
+        info!("No matches in path.txt found for game id {}, launching game without copying", steam_app_id);
         Command::new(&command)
         .args(args) // Remaining launch arguments
-        .status().expect("Failed to launch original game"); // Wait for game to finish
+        //Launch as child since we dont need to keep running
+        .spawn().expect("Failed to launch");
         exit(1)
     } else {
+        info!("Restoring configs to game: {}", steam_app_id);
         //Copy configs to game
-        process_configs(true, &matching_lines, &steam_id, &steam_id_3, &steam_app_id, proton_prefix.as_deref(), &custom_env, &win_user_path, good_config_paths.as_path(), &mut log_file);
+        process_configs(true, &matching_lines, &steam_id, &steam_id_3, &steam_app_id, proton_prefix.as_deref(), &custom_env, &WINE_USER_PATH, good_config_paths.as_path());
+        info!("Finished restoring to game: {}, launching...", steam_app_id);
         //Launch Game
         Command::new(&command)
         .args(args) // Remaining launch arguments
         .status().expect("Failed to launch original game"); // Wait for game to finish
         //Copy configs to good folder
-        process_configs(false, &matching_lines, &steam_id, &steam_id_3, &steam_app_id, proton_prefix.as_deref(), &custom_env, &win_user_path, good_config_paths.as_path(), &mut log_file);
+        info!("Game: {} exited. Backing up config files.", steam_app_id);
+        process_configs(false, &matching_lines, &steam_id, &steam_id_3, &steam_app_id, proton_prefix.as_deref(), &custom_env, &WINE_USER_PATH, good_config_paths.as_path());
+        info!("Finished backing up config files. for game: {}. Exiting.", steam_app_id);
         exit(1)
     }
 
@@ -135,8 +179,7 @@ fn process_configs(
     proton_prefix: Option<&Path>,
     custom_envs: &HashMap<String, String>,
     win_user_path: &str,
-    good_config_paths: &Path,
-    log_file: &mut File,
+    good_config_paths: &Path
 ) {
     for raw_config in matching_lines {
         let mut split = raw_config.split(';');
@@ -179,25 +222,23 @@ fn process_configs(
         if to_game {
             copy_configs(
             &good_config_paths.join(steam_app_id).join(config),
-            &game_config_path.join(config),
-            log_file,
+            &game_config_path.join(config)
             );
         } else {
             copy_configs(
             &game_config_path.join(config),
-            &good_config_paths.join(steam_app_id).join(config),
-            log_file,
+            &good_config_paths.join(steam_app_id).join(config)
             );
         } 
     }   
 }
 
-fn copy_configs(from: &Path, to: &Path, log_file: &mut std::fs::File){
+fn copy_configs(from: &Path, to: &Path){
     if let Err(e) = fs::copy(&from, &to){
-        let _ = writeln!(log_file, "Failed to Copy {} to {}", from.to_string_lossy(), to.to_string_lossy());
-        let _ = writeln!(log_file, "Error: {}", e);
+        error!("Failed to Copy {} to {}", from.to_string_lossy(), to.to_string_lossy());
+        error!("Error: {}", e);
     } else {
-        let _ = writeln!(log_file, "Copied {} to {}", from.to_string_lossy(), to.to_string_lossy());
+        info!("Copied {} to {}", from.to_string_lossy(), to.to_string_lossy());
     }
 }
 
@@ -224,6 +265,7 @@ fn get_documents_path() -> PathBuf {
     panic!("get_documents_path() should only be called on Windows");
 }
 
+// Expand %% windows vars with vars from the hashmap is exists otherwise from environment
 fn expand_windows_env_vars(input: &str, overrides: Option<&HashMap<String, String>>) -> String {
     let re = Regex::new(r"%([^%]+)%").unwrap();
     re.replace_all(input, |caps: &regex::Captures| {
