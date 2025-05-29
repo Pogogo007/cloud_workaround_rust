@@ -1,0 +1,2 @@
+1903340;%LOCALAPPDATA%/Sandfall/Saved/SaveGames/%STEAMID%;SharedGameUserSettings.sav
+1903340;%LOCALAPPDATA%/Sandfall/Saved/SaveGames/%STEAMID%;EnhancedInputUserSettings.sav
