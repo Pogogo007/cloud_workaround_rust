@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader};
 use std::fs::File;
 use std::process::{Command, exit};
 use std::collections::HashMap;
-use log::{debug, error, info, LevelFilter};
+use log::{warn, debug, error, info, LevelFilter};
 use chrono::Local;
 
 fn main() {
@@ -25,6 +25,7 @@ fn main() {
     let mut good_config_paths = home_dir.join("Documents").join("game_configs");
     let paths_file = env::current_exe().unwrap().parent().unwrap().to_path_buf().join("paths.txt");
     let steam_app_id = env::var("SteamAppId").expect("Not running under steam");
+    let steam_user = env::var("SteamUser").expect("Steam User not found!");
     let log_file_path = good_config_paths.join(format!("{}_config_workaround.log", steam_app_id));
     let steam_id: String;
     let steam_id_3: String;
@@ -62,19 +63,23 @@ fn main() {
     // variables needed depending on os
     //Linux only
     const WINE_USER_PATH: &str = "pfx/drive_c/users/steamuser";
+    let config_vdf_linux = home_dir.join(".local").join("share").join("Steam").join("config").join("config.vdf");
     let mut proton_prefix: Option<PathBuf> = None;
 
     //Windows only 
     let mut custom_env: HashMap<String, String> = HashMap::new();
+    //Assume default steam install path for now
+    let config_vdf_windows: PathBuf = PathBuf::from("C:/Program Files (x86)/Steam/config/config.vdf");
 
     //Set needed variables depending on OS
     match std::env::consts::OS {
         //Set variables if under windows
         "windows" => {
-            let steam_id_str = env::var("STEAMID").expect("No SteamID Found");
-            let steam_id_u64: u64 = steam_id_str.parse().expect("STEAMID is not a valid number");
-            let steam_id_3_u64: u64 = steam_id_u64 - STEAM_ID_OFFSET;
-            steam_id = steam_id_u64.to_string();
+            steam_id = env::var("STEAMID").unwrap_or_else(|_| {
+                warn!("SteamID not set via env vars on windows. Falling back to config parsing");
+                return get_steamid_from_config(&config_vdf_windows, &steam_user);
+            });
+            let steam_id_3_u64: u64 = steam_id.parse::<u64>().expect("msg") - STEAM_ID_OFFSET;
             steam_id_3 = steam_id_3_u64.to_string();
             //Get document path from registry
             let custom_documents_path = get_documents_path();
@@ -89,21 +94,10 @@ fn main() {
         //Set variables if under linux
         "linux" => {
             proton_prefix = Some(PathBuf::from(env::var("STEAM_COMPAT_DATA_PATH").expect("No proton compat data folder found. This tool does not support linux native games!")));
-            let steam_user = env::var("SteamUser").expect("Steam User not found!");
             //.local/share/Steam/config/config.vdf
-            let config_vdf = home_dir.join(".local").join("share").join("Steam").join("config").join("config.vdf");
-            //STEAMID=$(grep -Pzo '"'${SteamUser}'"\s+{\s+"SteamID"\s+"[0-9]+"' /home/${USER}/.local/share/Steam/config/config.vdf | grep --text -oP '(?<=\s")[0-9]+')
-            let contents = fs::read_to_string(&config_vdf).expect("Failed to read config.vdf");
-            let block_re = Regex::new(&format!(r#""{}"\s*\{{[^{{}}]*?"SteamID"\s+"([0-9]+)""#,regex::escape(&steam_user))).expect("Regex invalid");
-            if let Some(caps) = block_re.captures(&contents) {
-                let steam_id_str = &caps[1];
-                let steam_id_u64: u64 = steam_id_str.parse().expect("STEAMID is not a valid number");
-                let steam_id_3_u64: u64 = steam_id_u64 - STEAM_ID_OFFSET;  
-                steam_id = steam_id_u64.to_string();
-                steam_id_3 = steam_id_3_u64.to_string();
-            } else {
-                panic!("No steamid found in config.vdf. How is this possible?")
-            }
+            steam_id = get_steamid_from_config(&config_vdf_linux, &steam_user);
+            let steam_id_3_u64: u64 = steam_id.parse::<u64>().expect("SteamID is not a number!") - STEAM_ID_OFFSET;  
+            steam_id_3 = steam_id_3_u64.to_string();
         }
         _ => {
             panic!("Unsupported OS at this stage???")
@@ -239,6 +233,19 @@ fn copy_configs(from: &Path, to: &Path){
         error!("Error: {}", e);
     } else {
         info!("Copied {} to {}", from.to_string_lossy(), to.to_string_lossy());
+    }
+}
+
+
+fn get_steamid_from_config(config_path: &Path, steam_user: &str) -> String{
+    //STEAMID=$(grep -Pzo '"'${SteamUser}'"\s+{\s+"SteamID"\s+"[0-9]+"' /home/${USER}/.local/share/Steam/config/config.vdf | grep --text -oP '(?<=\s")[0-9]+')
+    let contents = fs::read_to_string(&config_path).expect("Failed to read config.vdf");
+    let block_re = Regex::new(&format!(r#""{}"\s*\{{[^{{}}]*?"SteamID"\s+"([0-9]+)""#,regex::escape(&steam_user))).expect("Regex invalid");
+    if let Some(caps) = block_re.captures(&contents) { 
+        let steam_id: String = caps[1].to_string();
+        return steam_id;
+    } else {
+        panic!("No steamid found in config.vdf. How is this possible?")
     }
 }
 
