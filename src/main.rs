@@ -10,6 +10,9 @@ use std::collections::HashMap;
 use log::{warn, debug, error, info, LevelFilter};
 use chrono::Local;
 
+#[cfg(windows)]
+mod windows;
+
 fn main() {
 
     //grab original command without self
@@ -70,6 +73,8 @@ fn main() {
     let mut custom_env: HashMap<String, String> = HashMap::new();
     //Assume default steam install path for now
     let config_vdf_windows: PathBuf = PathBuf::from("C:/Program Files (x86)/Steam/config/config.vdf");
+    const DEFAULT_DOCUMENTS_PATH: &str = "";
+    const DEFAULT_STEAM_PATH: &str = "";
 
     //Set needed variables depending on OS
     match std::env::consts::OS {
@@ -249,53 +254,6 @@ fn get_steamid_from_config(config_path: &Path, steam_user: &str) -> String{
     }
 }
 
-#[cfg(windows)]
-fn get_documents_path() -> PathBuf {
-    use winreg::enums::*;
-    use winreg::RegKey;
 
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let key = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders")
-        .expect("Could not open registry key for Documents folder");
-
-    let documents: String = key.get_value("Personal")
-        .expect("Could not read 'Personal' (Documents) path from registry");
-
-    // Expand environment variables like %USERPROFILE%
-    let expanded = expand_windows_env_vars(&documents, None);
-
-    PathBuf::from(expanded.to_string())
-}
-
-#[cfg(not(windows))]
-fn get_documents_path() -> PathBuf {
-    panic!("get_documents_path() should only be called on Windows");
-}
-
-//#[cfg(windows)]
-fn get_regkey_value(key_path: &str, fallback_return: &str) -> String {
-    use winreg::enums::*;
-    use winreg::RegKey;
-    let predef_index = key_path.find("\\").expect("Wrong Path given for registry");
-    let hkcu = RegKey::predef()
-
-}
-
-#[cfg(not(windows))]
-fn get_regkey_value(key_path: &str, fallback_return: &str) -> String {
-    panic!("get_regkey_value should only be called on Windows! {}, {}", key_path, fallback_return)
-}
-
-// Expand %% windows vars with vars from the hashmap is exists otherwise from environment
-fn expand_windows_env_vars(input: &str, overrides: Option<&HashMap<String, String>>) -> String {
-    let re = Regex::new(r"%([^%]+)%").unwrap();
-    re.replace_all(input, |caps: &regex::Captures| {
-        let key = &caps[1];
-        overrides
-            .and_then(|map| map.get(key).cloned())
-            .or_else(|| std::env::var(key).ok())
-            .unwrap_or_default()
-    }).to_string()
-}
 
 
