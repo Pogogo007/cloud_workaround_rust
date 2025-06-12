@@ -272,6 +272,20 @@ fn get_documents_path() -> PathBuf {
     panic!("get_documents_path() should only be called on Windows");
 }
 
+//#[cfg(windows)]
+fn get_regkey_value(key_path: &str, fallback_return: &str) -> String {
+    use winreg::enums::*;
+    use winreg::RegKey;
+    let predef_index = key_path.find("\\").expect("Wrong Path given for registry");
+    let hkcu = RegKey::predef()
+
+}
+
+#[cfg(not(windows))]
+fn get_regkey_value(key_path: &str, fallback_return: &str) -> String {
+    panic!("get_regkey_value should only be called on Windows! {}, {}", key_path, fallback_return)
+}
+
 // Expand %% windows vars with vars from the hashmap is exists otherwise from environment
 fn expand_windows_env_vars(input: &str, overrides: Option<&HashMap<String, String>>) -> String {
     let re = Regex::new(r"%([^%]+)%").unwrap();
