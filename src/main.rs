@@ -10,9 +10,9 @@ use chrono::Local;
 
 mod platform;
 mod shared;
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 use platform::windows as platform_os;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use platform::linux as platform_os;
 
 fn main() {
