@@ -82,9 +82,6 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          
-      - name: Install zip
-        run: choco install zip -y
 
       - name: Download paths.txt from original repo
         run: Invoke-WebRequest https://raw.githubusercontent.com/tmplshdw/cloud_config_workaround/main/paths.txt -OutFile paths.txt
@@ -109,22 +106,20 @@ jobs:
           echo "bin_name=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')" >> $GITHUB_OUTPUT
 
       - name: Package release binary
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir output_release
-          cp "target/release/${{ steps.get-bin.outputs.bin_name }}.exe" output_release/
-          cp paths.txt output_release/
-          cd output_release
-          zip ../windows-release-build.zip *
+          New-Item -ItemType Directory -Path output_release
+          Copy-Item "target/release/${{ steps.get-bin.outputs.bin_name }}.exe" -Destination output_release/
+          Copy-Item paths.txt -Destination output_release/
+          Compress-Archive -Path output_release/* -DestinationPath windows-release-build.zip
 
       - name: Package debug binary
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir output_debug
-          cp "target/debug/${{ steps.get-bin.outputs.bin_name }}.exe" output_debug/
-          cp paths.txt output_debug/
-          cd output_debug
-          zip ../windows-debug-build.zip *
+          New-Item -ItemType Directory -Path output_debug
+          Copy-Item "target/debug/${{ steps.get-bin.outputs.bin_name }}.exe" -Destination output_debug/
+          Copy-Item paths.txt -Destination output_debug/
+          Compress-Archive -Path output_debug/* -DestinationPath windows-debug-build.zip
 
       - name: Upload release binary to GitHub Release
         uses: softprops/action-gh-release@v2
