@@ -23,7 +23,10 @@ const DEFAULT_STEAM_PATH: &str = "C:\\Program Files (x86)\\Steam\\";
 pub fn get_good_config_paths() -> PathBuf{
     DOCUMENTS_PATH.get_or_init(|| {
         get_regkey_value::<String>(DOCUMENTS_REGKEY_PATH, DOCUMENTS_REGKEY)
-            .map(PathBuf::from)
+            .map(|val| {
+                let expanded = expand_windows_env_vars(&val, None);
+                PathBuf::from(expanded)
+            })
             .unwrap_or_else(|_| {
                 warn!("No Documents Path set in registry, falling back to default path");
                 home::home_dir().expect("No Home Directory Found!").join("Documents")
@@ -34,15 +37,17 @@ pub fn get_good_config_paths() -> PathBuf{
 //Main entrypoint MUST BE CALLED!
 pub fn init(steam_user: &str) -> (String, String) {
     let steam_path: PathBuf = get_regkey_value::<String>(STEAM_REGKEY_PATH, STEAM_REGKEY)
-    .map(PathBuf::from)
-    .unwrap_or_else(|_| {
-        warn!("No steam path found in registry, falling back to default path");
-        return PathBuf::from(DEFAULT_STEAM_PATH);
-    });
-
+        .map(|val| {
+            let expanded = expand_windows_env_vars(&val, None);
+            PathBuf::from(expanded)
+        })
+        .unwrap_or_else(|_| {
+            warn!("No steam path found in registry, falling back to default path");
+            return PathBuf::from(DEFAULT_STEAM_PATH);
+        });
     let steam_id = env::var("STEAMID").unwrap_or_else(|_| {
-                warn!("SteamID not set via env vars on windows. Falling back to config parsing");
-                return shared::get_steamid_from_config(steam_path.join("config").join("config.vdf"), &steam_user);
+        warn!("SteamID not set via env vars on windows. Falling back to config parsing");
+        return shared::get_steamid_from_config(steam_path.join("config").join("config.vdf"), &steam_user);
     });
     let steam_id_3_u64: u64 = steam_id.parse::<u64>().expect("msg") - shared::STEAM_ID_OFFSET;
     let steam_id_3 = steam_id_3_u64.to_string();
