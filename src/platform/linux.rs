@@ -1,10 +1,7 @@
-use winreg::{RegKey, types::FromRegValue, HKEY};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use regex::Regex;
-use std::collections::HashMap;
 use std::env;
-use log::{warn, debug, error, info, LevelFilter};
+use log::{debug};
 use crate::shared;
 
 //Linux only
