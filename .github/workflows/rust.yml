@@ -30,20 +30,43 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Package binary and paths.txt
-        run: |
-          BIN_NAME=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')
-          mkdir output
-          cp "target/release/$BIN_NAME" output/
-          cp paths.txt output/
-          tar -czf linux-build.tar.gz -C output .
+      - name: Build debug
+        run: cargo build
 
-      - name: Upload to GitHub Release
+      - name: Get binary name
+        id: get-bin
+        run: |
+          echo "bin_name=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')" >> $GITHUB_OUTPUT
+
+      - name: Package release binary
+        run: |
+          mkdir output
+          cp "target/release/${{ steps.get-bin.outputs.bin_name }}" output/
+          cp paths.txt output/
+          tar -czf linux-release-build.tar.gz -C output .
+
+      - name: Package debug binary
+        run: |
+          mkdir output_debug
+          cp "target/debug/${{ steps.get-bin.outputs.bin_name }}" output_debug/
+          cp paths.txt output_debug/
+          tar -czf linux-debug-build.tar.gz -C output_debug .
+
+      - name: Upload release binary to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest
-          files: linux-build.tar.gz
+          files: linux-release-build.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload debug binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          files: linux-debug-build.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -73,24 +96,51 @@ jobs:
           Get-Content extrapaths.txt | Add-Content paths.txt
         shell: powershell
 
-      - name: Build
+      - name: Build release
         run: cargo build --release
 
-      - name: Package binary and path.txt
+      - name: Build debug
+        run: cargo build
+
+      - name: Get binary name
+        id: get-bin
         shell: bash
         run: |
-          BIN_NAME=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')
-          mkdir output
-          cp "target/release/$BIN_NAME.exe" output/
-          cp paths.txt output/
-          cd output
-          zip ../windows-build.zip *
+          echo "bin_name=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name')" >> $GITHUB_OUTPUT
 
-      - name: Upload to GitHub Release
+      - name: Package release binary
+        shell: bash
+        run: |
+          mkdir output_release
+          cp "target/release/${{ steps.get-bin.outputs.bin_name }}.exe" output_release/
+          cp paths.txt output_release/
+          cd output_release
+          zip ../windows-release-build.zip *
+
+      - name: Package debug binary
+        shell: bash
+        run: |
+          mkdir output_debug
+          cp "target/debug/${{ steps.get-bin.outputs.bin_name }}.exe" output_debug/
+          cp paths.txt output_debug/
+          cd output_debug
+          zip ../windows-debug-build.zip *
+
+      - name: Upload release binary to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest
-          files: windows-build.zip
+          files: windows-release-build.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload debug binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          files: windows-debug-build.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
