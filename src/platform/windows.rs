@@ -21,20 +21,14 @@ static DOCUMENTS_PATH: OnceLock<PathBuf> = OnceLock::new();
 const DEFAULT_STEAM_PATH: &str = "C:\\Program Files (x86)\\Steam\\";
 
 pub fn get_good_config_paths() -> PathBuf{
-    if !DOCUMENTS_PATH.get().is_some(){
-        set_documents_path();
-    }
-    return DOCUMENTS_PATH.get().unwrap().join("game_configs")
-}
-
-fn set_documents_path(){
-    let documents_path: PathBuf = get_regkey_value::<String>(DOCUMENTS_REGKEY_PATH, DOCUMENTS_REGKEY)
-    .map(PathBuf::from)
-    .unwrap_or_else(|_| {
-        warn!("No Documents Path set in registry, falling back to default path");
-        home::home_dir().expect("No Home Directory Found!").join("Documents")
-    });
-        DOCUMENTS_PATH.set(documents_path).expect("Documents path already set? How is this possible!");
+    DOCUMENTS_PATH.get_or_init(|| {
+        get_regkey_value::<String>(DOCUMENTS_REGKEY_PATH, DOCUMENTS_REGKEY)
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                warn!("No Documents Path set in registry, falling back to default path");
+                home::home_dir().expect("No Home Directory Found!").join("Documents")
+            })
+    }).join("game_configs")
 }
 
 //Main entrypoint MUST BE CALLED!
