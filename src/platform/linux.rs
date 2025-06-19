@@ -13,7 +13,7 @@ pub fn get_good_config_paths() -> PathBuf{
 }
 
 pub fn init(steam_user: &str) -> (String, String) {
-    PROTON_PREFIX.set(PathBuf::from(env::var("STEAM_COMPAT_DATA_PATH").expect("No proton compat data folder found. This tool does not support linux native games!")));
+    PROTON_PREFIX.set(PathBuf::from(env::var("STEAM_COMPAT_DATA_PATH").expect("No proton compat data folder found. This tool does not support linux native games!"))).expect("Proton Prefix is already set? How is this possible!");
     //.local/share/Steam/config/config.vdf
     let config_vdf_linux = home::home_dir().unwrap().join(".local").join("share").join("Steam").join("config").join("config.vdf");
     let steam_id = shared::get_steamid_from_config(config_vdf_linux, &steam_user);
